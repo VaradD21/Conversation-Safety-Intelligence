@@ -1,0 +1,30 @@
+{
+  "normalize_text": {
+    "file": "src/preprocessor.py",
+    "purpose": "Strip HTML, collapse whitespace, lowercase text"
+  },
+  "parse_conversation": {
+    "file": "src/preprocessor.py",
+    "purpose": "Convert raw list of dicts to typed Message objects"
+  },
+  "extract_message_features": {
+    "file": "src/feature_extractor.py",
+    "purpose": "Returns toxicity and sentiment NLP model scores per message"
+  },
+  "extract_conversation_features": {
+    "file": "src/feature_extractor.py",
+    "purpose": "Returns aggregated scalar metrics across the conversation"
+  },
+  "build_feature_vector": {
+    "file": "src/feature_extractor.py",
+    "purpose": "Formats all extracted features into a flat numpy array"
+  },
+  "analyze_message": {
+    "file": "model/message_analyzer.py",
+    "purpose": "Returns toxicity and sentiment using detoxify and roberta pipeline"
+  },
+  "classify": {
+    "file": "model/decision_engine.py",
+    "purpose": "Final classification logic using ML random forest probabilities and rules"
+  }
+}

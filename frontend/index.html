@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conversation Safety Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- Safety Widget -->
+  <div id="safety-widget" class="safety-widget safe">
+    <div class="safety-indicator"></div>
+    <div class="safety-content">
+      <span class="safety-label">Live Status</span>
+      <strong id="safety-status">SAFE</strong>
+      <span id="safety-confidence">Conf: 100%</span>
+      <span id="detected-phase" class="phase-label">Phase: Normal</span>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <header class="app-header">
+      <h1>Conversation Shield</h1>
+      <p>Behavioral Intelligence & Grooming Detection Engine</p>
+    </header>
+
+    <!-- Metadata Simulation Config -->
+    <section class="config-panel">
+      <h3>Simulation Context (Relationship Graph)</h3>
+      <div class="config-grid">
+        <div class="config-item">
+          <label>Sender Age</label>
+          <input type="number" id="meta-sender-age" value="25" />
+        </div>
+        <div class="config-item">
+          <label>Receiver Age</label>
+          <input type="number" id="meta-receiver-age" value="14" />
+        </div>
+        <div class="config-item">
+          <label>Friendship (Days)</label>
+          <input type="number" id="meta-friendship-days" value="0" />
+        </div>
+      </div>
+    </section>
+
+    <main class="chat-container">
+      
+      <!-- SENDER PANE -->
+      <section class="chat-pane" id="pane-sender">
+        <div class="pane-header">
+          <div class="avatar bg-gradient-sender">S</div>
+          <h2>Sender</h2>
+        </div>
+        <div class="chat-history" id="history-sender">
+          <!-- Messages go here -->
+        </div>
+        <form class="chat-input-form" data-user="Sender" id="form-sender">
+          <input type="text" placeholder="Type a message as Sender..." required />
+          <button type="submit">
+            <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </form>
+      </section>
+
+      <!-- RECEIVER PANE -->
+      <section class="chat-pane" id="pane-receiver">
+        <div class="pane-header">
+          <div class="avatar bg-gradient-receiver">R</div>
+          <h2>Receiver</h2>
+        </div>
+        <div class="chat-history" id="history-receiver">
+          <!-- Messages go here -->
+        </div>
+        <form class="chat-input-form" data-user="Receiver" id="form-receiver">
+          <input type="text" placeholder="Type a message as Receiver..." required />
+          <button type="submit">
+            <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </form>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
