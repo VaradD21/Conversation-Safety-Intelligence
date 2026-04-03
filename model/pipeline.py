@@ -8,6 +8,7 @@ from model.decision_engine import classify
 from model.explainer import generate_explanation
 from model.age_inference import build_age_profiles
 from model.semantic_engine import get_semantic_flags
+from model.image_analyzer import analyze_image
 from model import database
 from model.schemas import AnalysisResult, ConversationMetadata, MessageAnalysis, PatternEvidence
 from model.ai_judge import get_ai_judgment
@@ -40,11 +41,23 @@ def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict
             reason="Empty conversation.",
         )
 
-    # STEP 1: Per-message NLP analysis
+    # STEP 1: Per-message NLP and Image analysis
     analyzed_messages: List[MessageAnalysis] = []
     for msg in conversation:
-        analysis = analyze_message(msg.get("text", ""), msg.get("sender", "unknown"))
-        analyzed_messages.append(MessageAnalysis.from_dict(analysis))
+        analysis_dict = analyze_message(msg.get("text", ""), msg.get("sender", "unknown"))
+        
+        # Inject image parsing results
+        b64 = msg.get("image_base64")
+        if b64:
+            is_nsfw, score, label = analyze_image(b64)
+            analysis_dict["is_nsfw_image"] = is_nsfw
+            analysis_dict["nsfw_score"] = score
+            analysis_dict["image_base64"] = "<hidden_for_logs>" # don't leak huge base64 in trace
+            
+            if is_nsfw:
+                analysis_dict["text"] += f" [System Auto-flag: NSFW Image Detected ({label})]"
+            
+        analyzed_messages.append(MessageAnalysis.from_dict(analysis_dict))
 
     # STEP 2: Load user memory
     try:
@@ -179,6 +192,8 @@ def analyze_conversation(conversation: List[Dict[str, str]], metadata: Dict[str,
             metadata_obj.sender_id,
             result.risk_level,
             result.confidence,
+            result.ai_judgment,
+            result.threat_category
         )
         result.user_risk_score = persisted.get("user_risk_score", result.user_risk_score)
     except Exception as e:

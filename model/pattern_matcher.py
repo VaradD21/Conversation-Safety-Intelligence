@@ -31,6 +31,36 @@ SCORING_RULES = {
         "category": "coercion",
         "detail": "Conversation contains manipulative or pressuring language.",
     },
+    "substance_abuse": {
+        "keywords": ["weed", "drugs", "pills", "smoke", "high", "alc", "drink", "buzz", "dealer", "pick up"],
+        "weight": 0.8,
+        "category": "harmful_content",
+        "detail": "Discussion of illegal substances or underage drinking detected.",
+    },
+    "self_harm": {
+        "keywords": ["suicide", "harm myself", "end life", "worthless", "meaningless", "goodbye"],
+        "weight": 1.0,
+        "category": "safety_emergency",
+        "detail": "IMMEDIATE ATTENTION: Potential self-harm or critical mental health indicators.",
+    },
+    "explicit_content": {
+        "keywords": ["inappropriate photos", "explicit media", "explicit requests", "video call"],
+        "weight": 0.95,
+        "category": "grooming",
+        "detail": "Requests for inappropriate media or restricted interactions.",
+    },
+    "hate_radicalization": {
+        "keywords": ["hate", "kill them", "violence", "superior", "join us", "fight back", "traitor"],
+        "weight": 0.85,
+        "category": "harassment",
+        "detail": "Language indicates potential hate speech or extremist radicalization.",
+    },
+    "financial_fraud": {
+        "keywords": ["gift card", "money", "pay me", "transfer", "bank", "crypto", "win prize", "claim"],
+        "weight": 0.8,
+        "category": "fraud",
+        "detail": "Signals of potential scam or financial exploitation of a minor.",
+    },
 }
 
 def _collect_keyword_hits(messages: List[MessageAnalysis], keywords: List[str]) -> List[int]:
@@ -67,6 +97,9 @@ def match_patterns(analyzed_messages: List[MessageAnalysis], metadata: Conversat
         "pii_risk": 0.0,
         "deception": 0.0,
         "coercion": 0.0,
+        "harmful_content": 0.0,
+        "safety_emergency": 0.0,
+        "fraud": 0.0,
     })
     
     if not analyzed_messages:
@@ -196,6 +229,29 @@ def match_patterns(analyzed_messages: List[MessageAnalysis], metadata: Conversat
             "harassment",
             0.8,
         )
+
+    # 5. Harmful Content Categories
+    for rule_key in ["substance_abuse", "self_harm", "explicit_content", "hate_radicalization", "financial_fraud"]:
+        rule = SCORING_RULES[rule_key]
+        indices = _collect_keyword_hits(analyzed_messages, rule["keywords"])
+        
+        # Add hardware logic for explicit images
+        if rule_key == "explicit_content":
+            image_indices = [i for i, m in enumerate(analyzed_messages) if m.is_nsfw_image]
+            if image_indices:
+                indices.extend(image_indices)
+                rule["detail"] += " (NSFW Image detected)"
+                
+        if indices:
+            _append_weighted_evidence(
+                result,
+                rule_key,
+                indices,
+                [f"Potential {rule_key.replace('_', ' ')} keywords or media"],
+                rule["detail"],
+                rule["category"],
+                rule["weight"],
+            )
 
     result.flags = list(dict.fromkeys(result.flags))
     return result

@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": { "extensionPath": "/blocked.html?reason=adult" }
+    },
+    "condition": {
+      "urlFilter": "||pornhub.com",
+      "resourceTypes": ["main_frame"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": { "extensionPath": "/blocked.html?reason=violence" }
+    },
+    "condition": {
+      "urlFilter": "||livegore.com",
+      "resourceTypes": ["main_frame"]
+    }
+  }
+]

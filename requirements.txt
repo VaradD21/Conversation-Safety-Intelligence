@@ -12,3 +12,5 @@ sentence-transformers
 openai
 google-genai
 groq
+Pillow
+opencv-python-headless

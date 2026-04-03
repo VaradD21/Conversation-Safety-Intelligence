@@ -1,50 +1,56 @@
-# Conversation Safety Intelligence (CSI) 🛡️
+# Cyber Safety Monitoring System 🛡️
 
-A behavioral, multi-layered machine learning safety engine designed to protect vulnerable users from toxic interactions, grooming cycles, and predatory deception.
+A comprehensive, research-driven Cyber Safety and Abuse Monitoring platform designed to protect younger users through advanced behavioral analysis and multi-layered detection.
 
-## Features
-- **Context-Aware Safety Engine**: Uses profile metadata (Age, Friendship Duration) to distinguish between innocent banter and hazardous grooming.
-- **Predatory Fingerprinting**: Tracks users with a global risk score using an onboard SQLite database. Detects multi-target repeat offenders instantly.
-- **Identity Deception Detection**: Detects adult-to-child impersonation/catfishing attempts.
-- **ML Fusion**: Uses HuggingFace's `Toxic-BERT` alongside a Random Forest Behavioral Classifier.
+This project integrates high-performance NLP, domain-aware computer vision, and expert reasoning models to create a transparent, ethical safety layer for digital environments.
 
-## 🚀 Setup Instructions
+---
 
-1. **Clone the repository**
-2. **Install requirements:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. **Configure Environment:**
-   Create a `.env` file in the root directory if you possess external API tokens (Optional, this runs fully local out of the box).
+## 🌟 Technical Highlights
 
-## 🧠 Training the Behavioral Model
-Before running the API, you must generate the synthetic behavior models and train the local Random Forest Classifier.
+### 1. Multi-Modal Analysis Capabilities
+*   **Media Evaluation Layer**: Detects restricted or inappropriate imagery within static images, animated GIFs, and video files (MP4/WebM) using high-efficiency Vision Transformers (ViT) and automated keyframe extraction.
+*   **Linguistic & Semantic Intelligence**: Identifies obfuscated intent or coercive patterns using transformer-based sentiment analysis and semantic similarity engines.
+*   **Contextual Risk Assessment**: Dynamically adjusts safety verdicts by correlating user metadata (such as age profiles and relationship duration) with conversation markers.
 
-1. **Generate Synthetic Storylines:**
-   ```bash
-   python scripts/generate_synthetic_data.py
-   ```
-2. **Train the ML Classifier:**
-   *Note: On your first run, this will download the HuggingFace `Detoxify` models. This may take some time depending on internet speed.*
-   ```bash
-   python scripts/train_classifier.py
-   ```
-   *(This script automatically creates `models/classifier.pkl`)*
+### 2. Multi-Provider AI Reasoning
+*   Features a high-assurance "AI Judge" layer that aggregates verdicts from multiple state-of-the-art reasoning models:
+    *   **Google Gemini 2.0 Flash** (Primary Reasoning)
+    *   **Groq Llama-3.3-70B** (Low-Latency Fallback)
+    *   **HuggingFace Qwen-2.5** (Distributed Fallback)
+*   The system provides human-readable justifications for every flag, helping guardians understand risk vectors.
 
-## 🌐 Running the Platform
+### 3. Ethical Extension Implementation (Manifest V3)
+*   Implements on-device content analysis via a non-invasive Chrome Extension.
+*   Uses **Transparent Filtering**: Instead of silent monitoring, the system provides clear notifications and "Request Access" options when content is flagged, prioritizing user awareness.
 
-Once the model is trained, spin up the FastAPI backend and Simulator UI:
+---
 
-```bash
-python -m api.main
-```
+## 🚀 Engine Setup & Datasets
 
-Then visit: **[http://localhost:8000](http://localhost:8000)** in your browser to experience the real-time simulation module.
+### 🛠️ Architecture 
+The system is built on a **FastAPI backend** with a **Vanilla JS/HTML/CSS frontend**. 
 
-## 📂 Project Structure
+### 📊 Dataset Origin
+The detection engine was developed using a **research-backed synthetic dataset** generated specifically for this project.
+*   **Synthetic Baseline**: 600+ realistic, modeled conversation threads covering 10 distinct safety categories (Peer Bullying, Grooming Patterns, Substance Misuse, etc.).
+*   **NLP Models**: Pre-trained on established safety benchmarks, including the **Jigsaw Toxicity** dataset for baseline classification.
+*   **Vision Models**: Utilizes pre-trained ViT architectures optimized for media safety, which were trained on diverse image-safety datasets provided via HuggingFace Hub.
 
-* `/api/`: System endpoints and Pydantic schemas.
-* `/model/`: Machine Learning inference, Database Manager (`database.py`), Feature Extractors.
-* `/frontend/`: Vanilla HTML/JS/CSS Test Bed.
-* `/scripts/`: Data Generation and Model Builders.
+### ⚙️ Local Deployment
+1. **Requirements**: `pip install -r requirements.txt`
+2. **Environment**: Configure `.env` with your desired API provider keys (Gemini, Groq, or HF).
+3. **Execution**: Start the server with `python -m api.main`.
+
+---
+
+## 📂 Project Navigation
+
+*   **/api/**: RESTful endpoints and Pydantic validation schemas.
+*   **/model/**: Inference logic for media analysis, behavioral matching, and the AI Judge reasoning chain.
+*   **/extension/**: Manifest V3 source code for the transparent browser safety layer.
+*   **/frontend/**: Main dashboard and real-time interaction simulator.
+*   **/test_media/**: Local sandbox for verifying media detection across different formats (ignored by Git).
+
+---
+*Developed as a demonstration of Ethical AI in Child Safety.*

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Page Blocked - Cyber Safety</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            max-width: 500px;
+            text-align: center;
+            border-top: 6px solid #e53935;
+        }
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        h1 { margin-top: 0; color: #d32f2f; }
+        p { line-height: 1.6; color: #555; }
+        .reason-box {
+            background: #fff3f3;
+            border: 1px solid #ffcdd2;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-weight: bold;
+            color: #c62828;
+        }
+        .btn {
+            display: inline-block;
+            background: #d32f2f;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 15px;
+            transition: background 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background: #b71c1c;
+        }
+        .secondary {
+            background: #e0e0e0;
+            color: #333;
+            margin-left: 10px;
+        }
+        .secondary:hover {
+            background: #bdbdbd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🛑</div>
+        <h1>Website Blocked</h1>
+        <p>This page was blocked by your Cyber Safety Monitor to protect you from potentially harmful content.</p>
+        
+        <div class="reason-box" id="reasonText">
+            Reason: Unsafe Category
+        </div>
+        
+        <button class="btn" onclick="window.history.back()">Go Back</button>
+        <button class="btn secondary" onclick="requestAccess()">Request Access</button>
+    </div>
+
+    <script>
+        // Extract reason from URL parameter
+        const params = new URLSearchParams(window.location.search);
+        const reason = params.get('reason');
+        if (reason) {
+            document.getElementById('reasonText').textContent = 'Reason: ' + reason.charAt(0).toUpperCase() + reason.slice(1);
+        }
+
+        function requestAccess() {
+            alert("Access request logged. Your parent/guardian will review this domain on their dashboard.");
+        }
+    </script>
+</body>
+</html>

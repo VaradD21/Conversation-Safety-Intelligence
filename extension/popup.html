@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cyber Safety</title>
+    <style>
+        body { width: 250px; font-family: sans-serif; padding: 15px; margin: 0; color: #333; }
+        h3 { margin-top: 0; color: #1976d2; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+        .status { margin-bottom: 15px; display: flex; align-items: center; }
+        .indicator { width: 12px; height: 12px; background-color: #4CAF50; border-radius: 50%; margin-right: 8px; }
+        .btn { width: 100%; padding: 8px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .btn:hover { background: #1565c0; }
+        .footer { font-size: 11px; text-align: center; color: #888; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <h3>Cyber Safety Monitor</h3>
+    <div class="status">
+        <div class="indicator"></div>
+        <span>Protection Active</span>
+    </div>
+    <p style="font-size: 13px;">On-device DOM scanning is enabled. URLs are actively filtered.</p>
+    
+    <button class="btn" id="db-btn">Open Parent Dashboard</button>
+
+    <div class="footer">Transparency & Privacy First</div>
+    <script src="popup.js"></script>
+</body>
+</html>

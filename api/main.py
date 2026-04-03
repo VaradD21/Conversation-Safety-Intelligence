@@ -7,6 +7,8 @@ import os
 import uuid
 
 from model.pipeline import analyze_conversation
+from model.message_analyzer import analyze_message
+from model.image_analyzer import analyze_media
 
 app = FastAPI(
     title="Conversation Safety Analyzer API",
@@ -23,7 +25,9 @@ app.add_middleware(
 
 class MessageInput(BaseModel):
     sender: str
-    text: str
+    text: str = ""
+    image_base64: str = Field(default=None, description="Optional base64 encoded image string (e.g. data:image/png;base64,iVBO...)")
+
 
 class ConversationMetadata(BaseModel):
     sender_id: str = Field(default="unknown_sender", description="Unique ID for the sender.")
@@ -60,13 +64,78 @@ class AnalysisResponse(BaseModel):
     threat_category: str = Field(default="unknown")
     action_recommended: str = Field(default="")
 
+class DOMBatchRequest(BaseModel):
+    texts: List[str] = Field(..., description="Array of text node strings extracted from the DOM")
+
+class MediaRequest(BaseModel):
+    media_base64: str = Field(..., description="Base64 encoded string of the media (image, gif, video)")
+    media_type: str = Field(default="image", description="Type of media: 'image', 'gif', 'video/mp4', etc.")
+
+@app.post("/analyze_media")
+async def analyze_media_endpoint(request: MediaRequest):
+    if not request.media_base64:
+        raise HTTPException(status_code=400, detail="media_base64 cannot be empty.")
+    
+    try:
+        is_adult, confidence, frames_scanned = analyze_media(request.media_base64, request.media_type)
+        return {
+            "is_adult": is_adult,
+            "confidence": round(confidence, 3),
+            "analyzed_frames": frames_scanned,
+            "media_type_processed": request.media_type
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Media analysis failed: {str(e)}")
+
+@app.get("/blocklist")
+async def get_blocklist():
+    # In a full app, this connects to the AI database to fetch dynamic bad domains.
+    # For now, we return a static block list of demo risky domains.
+    return {
+        "domains": [
+            "pornhub.com",
+            "xvideos.com",
+            "livegore.com",
+            "bestgore.com",
+            "omegle.com",
+            "chatroulette.com"
+        ]
+    }
+
+@app.post("/analyze_dom")
+async def analyze_dom_endpoint(request: DOMBatchRequest):
+    if not request.texts:
+        return {"results": []}
+    
+    # We run the text through our high-speed NLP toxicity & sentiment models
+    results = []
+    for text in request.texts:
+        try:
+            # We skip AI Judge and complex context for raw DOM speed
+            analysis = analyze_message(text, "DOM_Node")
+            
+            # Simple thresholding for real-time DOM blurring
+            # If toxicity is high or highly negative sentiment indicating cyberbullying
+            is_hazardous = analysis["toxicity"] > 0.75 or (analysis["sentiment_score"] < -0.8 and analysis["toxicity"] > 0.5)
+            
+            reason = "High Toxicity/Bullying" if is_hazardous else "Safe"
+            
+            results.append({
+                "is_hazardous": is_hazardous,
+                "reason": reason
+            })
+        except Exception as e:
+            results.append({"is_hazardous": False, "reason": "error"})
+            
+    return {"results": results}
+
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_endpoint(request: ConversationRequest):
     if not request.conversation:
         raise HTTPException(status_code=400, detail="Conversation cannot be empty.")
     
     # Convert Pydantic models to dicts
-    convo_dicts = [{"sender": msg.sender, "text": msg.text} for msg in request.conversation]
+    convo_dicts = [{"sender": msg.sender, "text": msg.text, "image_base64": msg.image_base64} for msg in request.conversation]
     meta_dict = request.metadata.dict()
     
     try:

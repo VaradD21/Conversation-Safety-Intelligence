@@ -12,15 +12,27 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Models and Datasets
+# Models, Datasets, and Test Media
 data/
 models/
-.agent_memory/
+test_media/
+test_images/
+temp/
+tmp/
+.temp/
 
-# Database
+# Memory and DB
+.agent_memory/
 *.db
+*.sqlite3
 users.db
 interactions.db
+
+# Logs and Caches
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
 
 # IDEs
 .vscode/

@@ -38,6 +38,29 @@ def _apply_rule_overrides(
     result: DecisionResult,
 ) -> Optional[DecisionResult]:
     flags = patterns.flags
+    if "self_harm" in flags:
+        result.risk_level = "hazardous"
+        result.confidence = 1.0
+        result.decision_trace.append("self_harm_emergency_override")
+        return result
+
+    if "explicit_content" in flags:
+        result.risk_level = "hazardous"
+        result.confidence = 0.95
+        result.decision_trace.append("explicit_request_override")
+        return result
+
+    if "substance_abuse" in flags:
+        result.risk_level = "warning"
+        result.confidence = 0.8
+        result.decision_trace.append("substance_use_warning_override")
+        # Don't return yet, allow other rules to upgrade to hazardous
+    
+    if "financial_fraud" in flags:
+        result.risk_level = "warning"
+        result.confidence = 0.8
+        result.decision_trace.append("fraud_warning_override")
+
     if "identity_deception" in flags:
         result.risk_level = "hazardous"
         result.confidence = 1.0

@@ -23,29 +23,46 @@ const inputFriendship = document.getElementById('meta-friendship-days');
 formSender.addEventListener('submit', (e) => handleMessageSubmit(e, 'Sender'));
 formReceiver.addEventListener('submit', (e) => handleMessageSubmit(e, 'Receiver'));
 
-function handleMessageSubmit(e, user) {
+async function handleMessageSubmit(e, user) {
   e.preventDefault();
   const form = e.target;
-  const input = form.querySelector('input');
+  const input = form.querySelector('input[type="text"]');
+  const fileInput = form.querySelector('input[type="file"]');
   const text = input.value.trim();
   
-  if (!text) return;
+  let base64Image = null;
+  
+  if (fileInput.files.length > 0) {
+      const file = fileInput.files[0];
+      base64Image = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+      });
+  }
+  
+  if (!text && !base64Image) return;
   
   // Add to state
-  conversation.push({ sender: user, text: text });
+  const messageData = { sender: user, text: text };
+  if (base64Image) {
+      messageData.image_base64 = base64Image;
+  }
+  conversation.push(messageData);
   
   // Render in both panes
-  appendMessageToPane(historySender, user, text, user === 'Sender');
-  appendMessageToPane(historyReceiver, user, text, user === 'Receiver');
+  appendMessageToPane(historySender, user, text, base64Image, user === 'Sender');
+  appendMessageToPane(historyReceiver, user, text, base64Image, user === 'Receiver');
   
   // Clear input
   input.value = '';
+  fileInput.value = '';
   
   // Trigger Analysis
   analyzeConversation();
 }
 
-function appendMessageToPane(pane, senderName, text, isMe) {
+function appendMessageToPane(pane, senderName, text, imageBase64, isMe) {
   const wrapper = document.createElement('div');
   wrapper.className = `message-wrapper ${isMe ? 'me' : 'other'}`;
   
@@ -55,7 +72,21 @@ function appendMessageToPane(pane, senderName, text, isMe) {
   
   const bubble = document.createElement('div');
   bubble.className = 'message-bubble';
-  bubble.textContent = text;
+  
+  if (imageBase64) {
+      const img = document.createElement('img');
+      img.src = imageBase64;
+      img.style.maxWidth = '200px';
+      img.style.borderRadius = '8px';
+      img.style.marginBottom = '5px';
+      img.style.display = 'block';
+      bubble.appendChild(img);
+  }
+  
+  if (text) {
+      const textNode = document.createTextNode(text);
+      bubble.appendChild(textNode);
+  }
   
   wrapper.appendChild(senderLabel);
   wrapper.appendChild(bubble);

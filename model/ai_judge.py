@@ -36,7 +36,7 @@ You MUST respond in valid JSON with this EXACT format:
 {
   "final_risk": "safe" | "warning" | "hazardous",
   "reason": "A 2-3 sentence plain-language explanation for a parent",
-  "threat_category": "grooming" | "bullying" | "sextortion" | "stranger_danger" | "drug_solicitation" | "radicalization" | "self_harm" | "financial_fraud" | "age_deception" | "safe",
+  "threat_category": "grooming" | "bullying" | "sextortion" | "stranger_danger" | "drug_solicitation" | "radicalization" | "self_harm" | "financial_fraud" | "age_deception" | "violent_content" | "pornographic_content" | "safe",
   "action_recommended": "A single actionable instruction for the parent",
   "confidence": 0.0
 }

@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Cyber Safety Monitor",
+  "description": "Ethical, on-device cyber safety monitoring and filtering.",
+  "version": "1.0",
+  "permissions": [
+    "storage",
+    "declarativeNetRequestWithHostAccess",
+    "declarativeNetRequest",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "css": ["content.css"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "safety_ruleset",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  }
+}

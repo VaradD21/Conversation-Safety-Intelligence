@@ -27,6 +27,8 @@ def init_db():
             user_id TEXT,
             risk_level TEXT,
             confidence REAL,
+            reason TEXT,
+            threat_category TEXT,
             timestamp TIMESTAMP
         )
     ''')
@@ -77,14 +79,14 @@ def update_user_risk(user_id, risk_level):
     conn.commit()
     conn.close()
 
-def log_interaction(conversation_id, user_id, risk_level, confidence):
+def log_interaction(conversation_id, user_id, risk_level, confidence, reason="", threat_category="unknown"):
     conn = get_connection()
     c = conn.cursor()
     now = datetime.datetime.now().isoformat()
     c.execute('''
-        INSERT INTO interactions (conversation_id, user_id, risk_level, confidence, timestamp)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (conversation_id, user_id, risk_level, confidence, now))
+        INSERT INTO interactions (conversation_id, user_id, risk_level, confidence, reason, threat_category, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (conversation_id, user_id, risk_level, confidence, reason, threat_category, now))
     conn.commit()
     conn.close()
 
@@ -105,8 +107,8 @@ def get_user_interaction_stats(user_id):
     }
 
 
-def persist_analysis_result(conversation_id: str, user_id: str, risk_level: str, confidence: float) -> Dict[str, int]:
+def persist_analysis_result(conversation_id: str, user_id: str, risk_level: str, confidence: float, reason: str = "", threat_category: str = "unknown") -> Dict[str, int]:
     update_user_risk(user_id, risk_level)
-    log_interaction(conversation_id, user_id, risk_level, confidence)
+    log_interaction(conversation_id, user_id, risk_level, confidence, reason, threat_category)
     user_record = get_user(user_id)
     return {"user_risk_score": user_record.get("risk_score", 0)}

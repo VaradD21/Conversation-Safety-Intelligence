@@ -66,7 +66,11 @@
           <!-- Messages go here -->
         </div>
         <form class="chat-input-form" data-user="Sender" id="form-sender">
-          <input type="text" placeholder="Type a message as Sender..." required />
+          <label class="image-upload-btn" title="Attach Image">
+            &#128247;
+            <input type="file" id="file-sender" accept="image/*" style="display:none;" />
+          </label>
+          <input type="text" placeholder="Type a message or attach image..." />
           <button type="submit">
             <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
@@ -83,7 +87,11 @@
           <!-- Messages go here -->
         </div>
         <form class="chat-input-form" data-user="Receiver" id="form-receiver">
-          <input type="text" placeholder="Type a message as Receiver..." required />
+          <label class="image-upload-btn" title="Attach Image">
+            &#128247;
+            <input type="file" id="file-receiver" accept="image/*" style="display:none;" />
+          </label>
+          <input type="text" placeholder="Type a message or attach image..." />
           <button type="submit">
             <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>

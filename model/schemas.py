@@ -33,6 +33,9 @@ class MessageAnalysis:
     sentiment: float = 0.0
     toxicity_source: Optional[str] = None
     sentiment_source: Optional[str] = None
+    image_base64: Optional[str] = None
+    is_nsfw_image: bool = False
+    nsfw_score: float = 0.0
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MessageAnalysis":
@@ -43,6 +46,9 @@ class MessageAnalysis:
             sentiment=float(data.get("sentiment", 0.0)),
             toxicity_source=data.get("toxicity_source"),
             sentiment_source=data.get("sentiment_source"),
+            image_base64=data.get("image_base64"),
+            is_nsfw_image=bool(data.get("is_nsfw_image", False)),
+            nsfw_score=float(data.get("nsfw_score", 0.0)),
         )
 
     def to_dict(self) -> Dict[str, Any]:
