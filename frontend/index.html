@@ -17,8 +17,11 @@
     <div class="safety-content">
       <span class="safety-label">Live Status</span>
       <strong id="safety-status">SAFE</strong>
-      <span id="safety-confidence">Conf: 100%</span>
-      <span id="detected-phase" class="phase-label">Phase: Normal</span>
+      <div class="status-row">
+        <span id="safety-confidence">Conf: 100%</span>
+        <span id="detected-phase" class="phase-label">Phase: Normal</span>
+      </div>
+      <p id="ai-judgment" class="ai-insight"></p>
     </div>
   </div>
 
@@ -30,15 +33,19 @@
 
     <!-- Metadata Simulation Config -->
     <section class="config-panel">
-      <h3>Simulation Context (Relationship Graph)</h3>
+      <h3>Simulation Context</h3>
       <div class="config-grid">
         <div class="config-item">
-          <label>Sender Age</label>
+          <label>Sender ID (Memory)</label>
+          <input type="text" id="meta-sender-id" value="test_user_1" />
+        </div>
+        <div class="config-item">
+          <label>Sender Age <span class="optional-tag">(optional — AI will infer)</span></label>
           <input type="number" id="meta-sender-age" value="25" />
         </div>
         <div class="config-item">
-          <label>Receiver Age</label>
-          <input type="number" id="meta-receiver-age" value="14" />
+          <label>Receiver Age <span class="optional-tag">(optional)</span></label>
+          <input type="number" id="meta-receiver-age" value="25" />
         </div>
         <div class="config-item">
           <label>Friendship (Days)</label>
@@ -84,6 +91,16 @@
       </section>
 
     </main>
+
+    <!-- Action Panel — shown on hazardous/warning -->
+    <div id="action-panel" class="action-panel hidden">
+      <div class="action-icon">🚨</div>
+      <div class="action-content">
+        <span class="action-label" id="threat-category-badge">THREAT DETECTED</span>
+        <p id="action-recommended-text"></p>
+      </div>
+    </div>
+
   </div>
 
   <script src="/static/app.js"></script>

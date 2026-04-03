@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import datetime
+from typing import Dict
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "users.db")
 
@@ -102,3 +103,10 @@ def get_user_interaction_stats(user_id):
         "total_hazardous": total_hazardous or 0,
         "unique_conversations": unique_convos or 0
     }
+
+
+def persist_analysis_result(conversation_id: str, user_id: str, risk_level: str, confidence: float) -> Dict[str, int]:
+    update_user_risk(user_id, risk_level)
+    log_interaction(conversation_id, user_id, risk_level, confidence)
+    user_record = get_user(user_id)
+    return {"user_risk_score": user_record.get("risk_score", 0)}

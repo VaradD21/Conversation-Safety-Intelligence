@@ -6,3 +6,7 @@ numpy
 transformers
 detoxify
 torch
+huggingface_hub
+python-dotenv
+sentence-transformers
+openai

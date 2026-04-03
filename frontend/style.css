@@ -49,13 +49,36 @@ body {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  padding: 0.75rem 1.25rem;
+  padding: 1rem 1.5rem;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 100;
+  max-width: 320px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ai-insight {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+  opacity: 0.9;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  display: none; /* Hidden unless content exists */
+  font-style: italic;
+}
+
+.ai-insight:not(:empty) {
+  display: block;
 }
 
 .safety-indicator {
@@ -64,6 +87,7 @@ body {
   border-radius: 50%;
   box-shadow: 0 0 10px currentColor;
   transition: all 0.4s ease;
+  margin-top: 4px;
 }
 
 .safety-content {
@@ -418,4 +442,82 @@ body {
 @keyframes bounce {
   from { transform: translateY(-2px); }
   to { transform: translateY(2px); }
+}
+
+/* Optional tag in labels */
+.optional-tag {
+  font-size: 0.65rem;
+  color: #8b5cf6;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+/* Action Panel */
+.action-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 16px;
+  padding: 1.25rem 1.75rem;
+  animation: slideIn 0.4s ease forwards;
+}
+
+.action-panel.hidden {
+  display: none;
+}
+
+.action-panel.warning-panel {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.action-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.action-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.action-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--hazard-color);
+  background: rgba(239, 68, 68, 0.15);
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.action-panel.warning-panel .action-label {
+  color: var(--warning-color);
+  background: rgba(245, 158, 11, 0.15);
+}
+
+#action-recommended-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Config grid 4-column for the new sender ID field */
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .config-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

@@ -1,4 +1,0 @@
-{
-  "src/preprocessor.py": "Data ingestion and text normalization for conversation analysis",
-  "src/feature_extractor.py": "Extract message and conversation-level features using pretrained models"
-}

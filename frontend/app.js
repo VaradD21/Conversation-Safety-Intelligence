@@ -1,5 +1,6 @@
 // Global conversation state
 let conversation = [];
+let currentConversationId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
 
 // DOM Elements
 const widget = document.getElementById('safety-widget');
@@ -13,6 +14,7 @@ const historySender = document.getElementById('history-sender');
 const historyReceiver = document.getElementById('history-receiver');
 
 // Metadata Elements
+const inputSenderId = document.getElementById('meta-sender-id');
 const inputSenderAge = document.getElementById('meta-sender-age');
 const inputReceiverAge = document.getElementById('meta-receiver-age');
 const inputFriendship = document.getElementById('meta-friendship-days');
@@ -72,6 +74,8 @@ async function analyzeConversation() {
   
   // Grab Metadata from UI
   const metadata = {
+    sender_id: inputSenderId.value.trim() || 'unknown',
+    conversation_id: currentConversationId,
     sender_age: parseInt(inputSenderAge.value) || 25,
     receiver_age: parseInt(inputReceiverAge.value) || 25,
     friendship_duration_days: parseInt(inputFriendship.value) || 0
@@ -91,7 +95,7 @@ async function analyzeConversation() {
     }
     
     const result = await response.json();
-    updateSafetyWidget(result.risk_level, result.confidence, result.detected_phase);
+    updateSafetyWidget(result.risk_level, result.confidence, result.detected_phase, result.ai_judgment, result.threat_category, result.action_recommended);
     
   } catch (err) {
     console.error('Error analyzing conversation:', err);
@@ -101,11 +105,34 @@ async function analyzeConversation() {
   }
 }
 
-function updateSafetyWidget(riskLevel, confidence, phase = 'Normal') {
+const aiJudgmentText = document.getElementById('ai-judgment');
+const actionPanel = document.getElementById('action-panel');
+const threatCategoryBadge = document.getElementById('threat-category-badge');
+const actionRecommendedText = document.getElementById('action-recommended-text');
+
+function updateSafetyWidget(riskLevel, confidence, phase = 'Normal', aiJudgment = '', threatCategory = '', actionRecommended = '') {
   const percent = Math.round(confidence * 100);
   
   widget.className = 'safety-widget';
   phaseText.textContent = `Phase: ${phase}`;
+  aiJudgmentText.textContent = aiJudgment || '';
+
+  // Action panel logic
+  actionPanel.className = 'action-panel hidden';
+  if (riskLevel === 'hazardous' && actionRecommended) {
+    actionPanel.classList.remove('hidden');
+    actionPanel.classList.remove('warning-panel');
+    const label = threatCategory && threatCategory !== 'unknown'
+      ? threatCategory.replace(/_/g, ' ').toUpperCase()
+      : 'THREAT DETECTED';
+    threatCategoryBadge.textContent = label;
+    actionRecommendedText.textContent = actionRecommended;
+  } else if (riskLevel === 'warning' && actionRecommended) {
+    actionPanel.classList.remove('hidden');
+    actionPanel.classList.add('warning-panel');
+    threatCategoryBadge.textContent = 'ADVISORY';
+    actionRecommendedText.textContent = actionRecommended;
+  }
   
   if (riskLevel === 'safe') {
     widget.classList.add('safe');

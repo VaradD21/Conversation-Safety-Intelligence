@@ -13,7 +13,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 
 from model.message_analyzer import analyze_message
-from model.feature_extractor import extract_features
+from model.feature_extractor import build_feature_vector, extract_features
+from model.schemas import ConversationMetadata, MessageAnalysis
 
 def main():
     data_path = "data/conversations.jsonl"
@@ -39,23 +40,15 @@ def main():
         # Extract Message-level features
         analyzed = []
         for msg in convo:
-            analysis = analyze_message(msg["text"])
-            analysis["sender"] = msg["sender"]
-            analyzed.append(analysis)
+            analysis = analyze_message(msg["text"], msg["sender"])
+            analyzed.append(MessageAnalysis.from_dict(analysis))
             
         # Extract Conversation-level features
-        metadata = data.get("metadata", {"friendship_duration_days": 100, "sender_age": 25, "receiver_age": 25})
+        metadata = ConversationMetadata.from_dict(
+            data.get("metadata", {"friendship_duration_days": 100, "sender_age": 25, "receiver_age": 25})
+        )
         feats = extract_features(analyzed, metadata)
-        
-        # Build numerical feature vector (ensure this aligns with decision_engine.py input)
-        vector = [
-            feats.get("avg_toxicity", 0.0),
-            feats.get("max_toxicity", 0.0),
-            float(feats.get("num_toxic_messages", 0)),
-            float(feats.get("max_consecutive_toxic", 0)),
-            feats.get("sender_imbalance", 0.0),
-            feats.get("escalation", 0.0)
-        ]
+        vector = build_feature_vector(feats)
         
         features_list.append(vector)
         labels_list.append(label_map[label])

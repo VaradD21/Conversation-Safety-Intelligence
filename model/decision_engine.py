@@ -1,9 +1,11 @@
 import os
 import pickle
 import numpy as np
-from typing import Dict, Any
+from typing import Optional
 
 from model import database
+from model.feature_extractor import build_feature_vector
+from model.schemas import ConversationFeatures, ConversationMetadata, DecisionResult, PatternEvidence, PatternMatchResult
 
 # Dynamically load the trained Random Forest model if the training script was run
 clf = None
@@ -15,117 +17,128 @@ if os.path.exists(model_path):
     except Exception:
         pass
 
-def classify(features: Dict[str, Any], patterns: Dict[str, Any], metadata: Dict[str, Any] = None) -> Dict[str, Any]:
-    """
-    Final classification logic using Multi-Layered Defense and Historical Risk.
-    """
-    result = {
-        "risk_level": "safe",
-        "confidence": 0.0,
-        "repeat_offender": False
-    }
-    
-    if metadata is None:
-        metadata = {"friendship_duration_days": 100, "sender_age": 25, "receiver_age": 25}
+HAZARD_THRESHOLDS = {
+    "default": 0.9,
+    "repeat_offender": 0.7,
+    "high_risk_repeat_offender": 0.5,
+}
 
-    sender_id = metadata.get("sender_id", "unknown_sender")
-    
-    # 1. Fetch user memory
-    try:
-        user_record = database.get_user(sender_id)
-        user_risk_score = user_record.get("risk_score", 0)
-        
-        # Adjust Thresholds
-        hazard_threshold = 0.9
-        if user_risk_score > 10:
-            hazard_threshold = 0.7
-            result["repeat_offender"] = True
-            patterns["flags"] = patterns.get("flags", []) + ["repeat_offender"]
-        if user_risk_score > 20:
-            hazard_threshold = 0.5
-            
-        # Multi-Target Detection (Predatory Pattern)
-        stats = database.get_user_interaction_stats(sender_id)
-        if stats["unique_conversations"] >= 3 and stats["total_hazardous"] >= 2:
-            patterns["flags"] = patterns.get("flags", []) + ["predatory_pattern"]
-            result["risk_level"] = "hazardous"
-            result["confidence"] = 0.99
-            return result
-            
-    except Exception:
-        hazard_threshold = 0.9
 
-    flags = patterns.get("flags", [])
-    max_tox = features.get("max_toxicity", 0.0)
-    avg_tox = features.get("avg_toxicity", 0.0)
-    friend_days = metadata.get("friendship_duration_days", 0)
-    age_gap = features.get("age_disparity", 0.0)
+def _append_flag(patterns: PatternMatchResult, flag: str, detail: str) -> None:
+    if flag in patterns.flags:
+        return
+    patterns.flags.append(flag)
+    patterns.evidence.append(PatternEvidence(flag=flag, detail=detail))
 
-    # ==========================
-    # LAYER 0: CONTEXT OVERRIDES 
-    # ==========================
+
+def _apply_rule_overrides(
+    features: ConversationFeatures,
+    patterns: PatternMatchResult,
+    metadata: ConversationMetadata,
+    result: DecisionResult,
+) -> Optional[DecisionResult]:
+    flags = patterns.flags
     if "identity_deception" in flags:
-        result["risk_level"] = "hazardous"
-        result["confidence"] = 1.0
+        result.risk_level = "hazardous"
+        result.confidence = 1.0
+        result.decision_trace.append("identity_deception_override")
         return result
 
     if "suspected_grooming" in flags:
-        if age_gap > 5 and friend_days < 30:
-            result["risk_level"] = "hazardous"
-            result["confidence"] = 0.95
-            return result
+        if features.age_disparity > 5 and metadata.friendship_duration_days < 30:
+            result.risk_level = "hazardous"
+            result.confidence = 0.95
+            result.decision_trace.append("grooming_with_age_gap_override")
         else:
-            result["risk_level"] = "warning"
-            result["confidence"] = 0.7
+            result.risk_level = "warning"
+            result.confidence = 0.7
+            result.decision_trace.append("grooming_warning_override")
+        return result
+
+    if metadata.friendship_duration_days > 180 and features.max_toxicity < 0.8 and not result.repeat_offender:
+        result.risk_level = "safe"
+        result.confidence = 0.9
+        result.decision_trace.append("long_friendship_safe_override")
+        return result
+
+    return None
+
+
+def _run_ml_score(features: ConversationFeatures, result: DecisionResult) -> Optional[DecisionResult]:
+    if clf is None:
+        return None
+
+    vector = [build_feature_vector(features)]
+    probas = clf.predict_proba(vector)[0]
+    max_idx = int(np.argmax(probas))
+    max_p = float(probas[max_idx])
+    result.confidence = max_p
+    result.decision_trace.append("ml_classifier")
+    if max_idx == 2 and max_p > 0.5:
+        result.risk_level = "hazardous"
+    elif max_idx == 1 and max_p > 0.4:
+        result.risk_level = "warning"
+    else:
+        result.risk_level = "safe"
+    return result
+
+
+def classify(features: ConversationFeatures, patterns: PatternMatchResult, metadata: ConversationMetadata = None) -> DecisionResult:
+    """Final classification logic using rule overrides, ML scoring, and historical risk aggregation."""
+    result = DecisionResult(category_scores=dict(patterns.category_scores))
+
+    if metadata is None:
+        metadata = ConversationMetadata(friendship_duration_days=100, sender_age=25, receiver_age=25)
+
+    sender_id = metadata.sender_id
+    hazard_threshold = HAZARD_THRESHOLDS["default"]
+
+    try:
+        user_record = database.get_user(sender_id)
+        user_risk_score = user_record.get("risk_score", 0)
+        result.category_scores["history"] = min(1.0, user_risk_score / 20.0)
+
+        if user_risk_score > 10:
+            hazard_threshold = HAZARD_THRESHOLDS["repeat_offender"]
+            result.repeat_offender = True
+            _append_flag(patterns, "repeat_offender", "Sender has elevated historical risk.")
+        if user_risk_score > 20:
+            hazard_threshold = HAZARD_THRESHOLDS["high_risk_repeat_offender"]
+            
+        stats = database.get_user_interaction_stats(sender_id)
+        if stats["unique_conversations"] >= 3 and stats["total_hazardous"] >= 2:
+            _append_flag(patterns, "predatory_pattern", "Repeated hazardous interactions across multiple conversations.")
+            result.risk_level = "hazardous"
+            result.confidence = 0.99
+            result.decision_trace.append("predatory_pattern_override")
             return result
+    except Exception:
+        result.category_scores["history"] = 0.0
 
-    if friend_days > 180 and max_tox < 0.8 and not result["repeat_offender"]:
-        result["risk_level"] = "safe"
-        result["confidence"] = 0.9
+    override_result = _apply_rule_overrides(features, patterns, metadata, result)
+    if override_result is not None:
+        return override_result
+
+    if features.max_toxicity >= hazard_threshold:
+        result.risk_level = "hazardous"
+        result.confidence = 0.98
+        result.decision_trace.append("toxicity_threshold_override")
+        return result
+    if "pii_leak_detected" in patterns.flags:
+        result.risk_level = "warning"
+        result.confidence = 0.85
+        result.decision_trace.append("pii_warning_override")
         return result
 
-    # ==========================
-    # LAYER 1: Hard Rule Overrides
-    # ==========================
-    if max_tox >= hazard_threshold:
-        result["risk_level"] = "hazardous"
-        result["confidence"] = 0.98
-        return result
-    if "pii_leak_detected" in flags:
-        result["risk_level"] = "warning"
-        result["confidence"] = 0.85
-        return result
+    ml_result = _run_ml_score(features, result)
+    if ml_result is not None:
+        return ml_result
 
-    # ==========================
-    # LAYER 2: ML Random Forest Fusion
-    # ==========================
-    if clf is not None:
-        # We need to make sure the vector here matches the one used in training!
-        # For now, we'll use the basic 6-feature vector. 
-        # Future note: We should retrain with the context features included.
-        vector = [[
-            features.get("avg_toxicity", 0.0),
-            features.get("max_toxicity", 0.0),
-            float(features.get("num_toxic_messages", 0)),
-            float(features.get("max_consecutive_toxic", 0)),
-            features.get("sender_imbalance", 0.0),
-            features.get("escalation", 0.0)
-        ]]
-        
-        probas = clf.predict_proba(vector)[0]
-        max_idx = np.argmax(probas)
-        max_p = probas[max_idx]
-        
-        result["confidence"] = float(max_p)
-        if max_idx == 2 and max_p > 0.5:
-            result["risk_level"] = "hazardous"
-        elif max_idx == 1 and max_p > 0.4:
-            result["risk_level"] = "warning"
-        else:
-            result["risk_level"] = "safe"
-        return result
-
-    # FALLBACK
-    if avg_tox > 0.5:
-        result["risk_level"] = "warning"
+    if features.avg_toxicity > 0.5:
+        result.risk_level = "warning"
+        result.confidence = 0.6
+        result.decision_trace.append("avg_toxicity_fallback")
+    else:
+        result.confidence = max(result.confidence, 0.75)
+        result.decision_trace.append("safe_fallback")
     return result
