@@ -108,24 +108,50 @@ def match_patterns(analyzed_messages: List[MessageAnalysis], metadata: Conversat
     )
 
     # 2. Identity Deception / Trap Check
-    # Look for "I am [age]" and compare to metadata
+    # Look for "I am [age]" and compare to verified metadata.
+    # IMPORTANT: Only flag if sender_age was explicitly provided (not default 25).
+    # A teen saying "I'm 14" is truthful — we should NOT flag that.
+    # We flag if: an adult sender (explicitly set >= 20) claims to be a child (<18)
+    # AND at least one other risk signal is present (grooming, meetup, PII, pressure).
     age_claims = re.findall(r"i am (\d+)", full_text)
     age_claims += re.findall(r"i'm (\d+)", full_text)
-    
+    age_claims += re.findall(r"im (\d+)", full_text)
+
+    SENDER_AGE_DEFAULT = 25  # The API default — means "not explicitly set"
+
     for claim in age_claims:
         claimed_age = int(claim)
         actual_age = metadata.sender_age
-        # If adult claims to be a child (<18)
+
+        # Skip if this is the default placeholder value — we can't assume deception
+        if actual_age == SENDER_AGE_DEFAULT:
+            continue
+
+        # Skip if the claim is plausibly consistent with actual age (±5 years)
+        if abs(actual_age - claimed_age) <= 5:
+            continue
+
+        # Only flag meaningful adult → child deception
         if actual_age >= 20 and claimed_age < 18:
-            _append_weighted_evidence(
-                result,
-                "identity_deception",
-                _collect_keyword_hits(analyzed_messages, [f"i am {claim}", f"i'm {claim}"]),
-                [f"claimed age {claim}"],
-                f"Sender age metadata is {actual_age}, but the conversation claims age {claim}.",
-                "deception",
-                1.0,
+            # Require at least one co-occurring risk signal to reduce false positives
+            existing_risk_flags = [f for f in result.flags if f in (
+                "suspected_grooming", "pii_leak_detected", "boundary_pressure",
+                "grooming_meetup", "grooming_secrecy", "pii_extraction"
+            )]
+            has_context = bool(existing_risk_flags) or any(
+                score > 0.3 for score in result.category_scores.values()
             )
+
+            if has_context:
+                _append_weighted_evidence(
+                    result,
+                    "identity_deception",
+                    _collect_keyword_hits(analyzed_messages, [f"i am {claim}", f"i'm {claim}", f"im {claim}"]),
+                    [f"claimed age {claim}"],
+                    f"Sender's verified profile age is {actual_age}, but conversation claims age {claim} alongside other risk signals.",
+                    "deception",
+                    1.0,
+                )
 
     # 3. Grooming Lifecycle Phase Detection
     # We look at keywords and their chronological appearance
