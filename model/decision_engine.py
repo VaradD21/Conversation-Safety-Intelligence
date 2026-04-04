@@ -128,13 +128,27 @@ def classify(features: ConversationFeatures, patterns: PatternMatchResult, metad
         if user_risk_score > 20:
             hazard_threshold = HAZARD_THRESHOLDS["high_risk_repeat_offender"]
             
-        stats = database.get_user_interaction_stats(sender_id)
-        if stats["unique_conversations"] >= 3 and stats["total_hazardous"] >= 2:
-            _append_flag(patterns, "predatory_pattern", "Repeated hazardous interactions across multiple conversations.")
-            result.risk_level = "hazardous"
-            result.confidence = 0.99
-            result.decision_trace.append("predatory_pattern_override")
-            return result
+        # Advanced behavioral override: detect repeat hazardous behavior across different sessions
+        # But skip for general 'unknown' IDs to avoid shared state pollution
+        if sender_id not in ["unknown", "unknown_sender", ""] and \
+           user_risk_score > 15:
+            stats = database.get_user_interaction_stats(sender_id)
+            if stats["unique_conversations"] >= 3 and stats["total_hazardous"] >= 2:
+                # We flag the predatory pattern
+                _append_flag(patterns, "predatory_pattern", "Repeated hazardous interactions across multiple conversations.")
+                
+                # Only force 'hazardous' status if the current conversation is NOT entirely safe.
+                # If they just said "hi", we give an advisory warning but not a hazardous verdict.
+                if features.max_toxicity > 0.1 or len([f for f in patterns.flags if f != "predatory_pattern" and f != "repeat_offender"]) > 0:
+                    result.risk_level = "hazardous"
+                    result.confidence = 0.99
+                    result.decision_trace.append("predatory_pattern_override")
+                    return result
+                else:
+                    # Known offender, but current message is safe. Provide a high-confidence warning.
+                    result.risk_level = "warning"
+                    result.confidence = 0.9
+                    result.decision_trace.append("predatory_pattern_advisory")
     except Exception:
         result.category_scores["history"] = 0.0
 
