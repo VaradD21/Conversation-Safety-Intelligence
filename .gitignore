@@ -1,4 +1,12 @@
-# Environments
+# ========================
+# Python
+# ========================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
 .env
 .venv
 env/
@@ -7,12 +15,24 @@ ENV/
 env.bak/
 venv.bak/
 
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+# Distribution / packaging
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
 
-# Models, Datasets, and Test Media
+# Testing & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# ========================
+# ML Models & Data
+# ========================
 data/
 models/
 test_media/
@@ -20,24 +40,53 @@ test_images/
 temp/
 tmp/
 .temp/
+*.pkl
+*.h5
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
 
-# Memory and DB
-.agent_memory/
+# ========================
+# Database
+# ========================
 *.db
 *.sqlite3
-users.db
-interactions.db
 
-# Logs and Caches
-*.log
-.pytest_cache/
-.coverage
-htmlcov/
+# ========================
+# Android / Gradle
+# ========================
+.gradle/
+**/build/
+*.apk
+*.aab
+*.dex
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+local.properties
+*.iml
+.cxx/
+captures/
 
-# IDEs
+# ========================
+# Legacy / Dead Code
+# ========================
+src/
+
+# ========================
+# IDEs & Editors
+# ========================
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# OS generated files
+# ========================
+# OS Generated
+# ========================
 .DS_Store
 Thumbs.db
+desktop.ini
