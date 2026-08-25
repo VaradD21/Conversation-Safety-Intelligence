@@ -9,8 +9,8 @@ torch
 huggingface_hub
 python-dotenv
 sentence-transformers
-openai
 google-genai
 groq
 Pillow
 opencv-python-headless
+joblib

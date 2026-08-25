@@ -3,23 +3,41 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Dict, List
+import asyncio
 import os
 import uuid
 
 from model.pipeline import analyze_conversation
 from model.message_analyzer import analyze_message
 from model.image_analyzer import analyze_media
+from model import database
+
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Initialize resources at startup, clean up on shutdown."""
+    database.init_db()
+    yield
+
 
 app = FastAPI(
     title="Conversation Safety Analyzer API",
     description="Analyzes multi-turn conversations for hazardous or toxic patterns.",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "chrome-extension://*",
+    ],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -77,7 +95,9 @@ async def analyze_media_endpoint(request: MediaRequest):
         raise HTTPException(status_code=400, detail="media_base64 cannot be empty.")
     
     try:
-        is_adult, confidence, frames_scanned = analyze_media(request.media_base64, request.media_type)
+        is_adult, confidence, frames_scanned = await asyncio.to_thread(
+            analyze_media, request.media_base64, request.media_type
+        )
         return {
             "is_adult": is_adult,
             "confidence": round(confidence, 3),
@@ -112,11 +132,11 @@ async def analyze_dom_endpoint(request: DOMBatchRequest):
     for text in request.texts:
         try:
             # We skip AI Judge and complex context for raw DOM speed
-            analysis = analyze_message(text, "DOM_Node")
+            analysis = await asyncio.to_thread(analyze_message, text, "DOM_Node")
             
             # Simple thresholding for real-time DOM blurring
             # If toxicity is high or highly negative sentiment indicating cyberbullying
-            is_hazardous = analysis["toxicity"] > 0.75 or (analysis["sentiment_score"] < -0.8 and analysis["toxicity"] > 0.5)
+            is_hazardous = analysis["toxicity"] > 0.75 or (analysis["sentiment"] < -0.8 and analysis["toxicity"] > 0.5)
             
             reason = "High Toxicity/Bullying" if is_hazardous else "Safe"
             
@@ -136,10 +156,10 @@ async def analyze_endpoint(request: ConversationRequest):
     
     # Convert Pydantic models to dicts
     convo_dicts = [{"sender": msg.sender, "text": msg.text, "image_base64": msg.image_base64} for msg in request.conversation]
-    meta_dict = request.metadata.dict()
+    meta_dict = request.metadata.model_dump()
     
     try:
-        result = analyze_conversation(convo_dicts, meta_dict)
+        result = await asyncio.to_thread(analyze_conversation, convo_dicts, meta_dict)
         return AnalysisResponse(
             risk_level=result["risk_level"],
             confidence=result["confidence"],

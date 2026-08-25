@@ -76,6 +76,12 @@ captures/
 src/
 
 # ========================
+# Embedded Git Repos (separate projects)
+# ========================
+Guardian-Android-App/
+Project-Child-Safety/
+
+# ========================
 # IDEs & Editors
 # ========================
 .vscode/

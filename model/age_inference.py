@@ -65,7 +65,9 @@ EXTRACTION_SIGNALS = [
 
 
 def _count_vocab_hits(text_lower: str, vocab: set) -> int:
-    return sum(1 for word in vocab if word in text_lower)
+    # Use word boundaries to prevent substring false positives
+    # e.g. "rn" shouldn't match "morning", "bc" shouldn't match "subconscious"
+    return sum(1 for word in vocab if re.search(rf"\b{re.escape(word)}\b", text_lower))
 
 
 def infer_sender_age_category(messages_from_sender: List[str]) -> Dict[str, object]:

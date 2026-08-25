@@ -12,6 +12,7 @@ How it works:
 4. Returns similarity scores and matched intent categories
 """
 import os
+import threading
 from typing import List, Dict, Tuple
 
 import numpy as np
@@ -19,6 +20,7 @@ import numpy as np
 _model = None
 _model_attempted = False
 _threat_embeddings_cache = None
+_model_lock = threading.Lock()
 
 # ============================================================
 # THREAT INTENT LIBRARY
@@ -76,19 +78,23 @@ THREAT_INTENTS = [
 
 
 def _load_model():
-    """Lazy-load the sentence transformer model. Fails gracefully."""
+    """Lazy-load the sentence transformer model. Thread-safe."""
     global _model, _model_attempted
     if _model_attempted:
         return _model
-    _model_attempted = True
-    try:
-        from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-        print("✅ Semantic Engine: sentence-transformers model loaded.")
-    except Exception as e:
-        _model = None
-        print(f"⚠️ Semantic Engine: Could not load model ({e}). Semantic scoring disabled.")
-    return _model
+    with _model_lock:
+        # Double-check after acquiring lock
+        if _model_attempted:
+            return _model
+        _model_attempted = True
+        try:
+            from sentence_transformers import SentenceTransformer
+            _model = SentenceTransformer("all-MiniLM-L6-v2")
+            print("✅ Semantic Engine: sentence-transformers model loaded.")
+        except Exception as e:
+            _model = None
+            print(f"⚠️ Semantic Engine: Could not load model ({e}). Semantic scoring disabled.")
+        return _model
 
 
 def _get_threat_embeddings():

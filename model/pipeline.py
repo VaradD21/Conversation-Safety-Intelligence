@@ -13,11 +13,7 @@ from model import database
 from model.schemas import AnalysisResult, ConversationMetadata, MessageAnalysis, PatternEvidence
 from model.ai_judge import get_ai_judgment
 
-# Initialize the database when pipeline is loaded
-try:
-    database.init_db()
-except Exception as e:
-    print(f"Warning: Failed to initialize memory DB: {e}")
+# Database initialization is handled by the FastAPI lifespan event in api/main.py
 
 
 def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict[str, Any] = None) -> AnalysisResult:

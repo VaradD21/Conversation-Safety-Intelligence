@@ -67,7 +67,13 @@ def _collect_keyword_hits(messages: List[MessageAnalysis], keywords: List[str]) 
     hits = []
     for index, message in enumerate(messages):
         lowered = message.text.lower()
-        if any(keyword in lowered for keyword in keywords):
+        # Use word boundaries for single-word keywords to prevent substring false positives
+        # (e.g. "weed" shouldn't match "tweed", "die" shouldn't match "diet")
+        if any(
+            re.search(rf"\b{re.escape(keyword)}\b", lowered) if " " not in keyword
+            else keyword in lowered
+            for keyword in keywords
+        ):
             hits.append(index)
     return hits
 
@@ -234,21 +240,23 @@ def match_patterns(analyzed_messages: List[MessageAnalysis], metadata: Conversat
     for rule_key in ["substance_abuse", "self_harm", "explicit_content", "hate_radicalization", "financial_fraud"]:
         rule = SCORING_RULES[rule_key]
         indices = _collect_keyword_hits(analyzed_messages, rule["keywords"])
-        
+        # Use a local copy of detail to avoid mutating the module-level dict
+        detail = rule["detail"]
+
         # Add hardware logic for explicit images
         if rule_key == "explicit_content":
             image_indices = [i for i, m in enumerate(analyzed_messages) if m.is_nsfw_image]
             if image_indices:
                 indices.extend(image_indices)
-                rule["detail"] += " (NSFW Image detected)"
-                
+                detail += " (NSFW Image detected)"
+
         if indices:
             _append_weighted_evidence(
                 result,
                 rule_key,
                 indices,
                 [f"Potential {rule_key.replace('_', ' ')} keywords or media"],
-                rule["detail"],
+                detail,
                 rule["category"],
                 rule["weight"],
             )

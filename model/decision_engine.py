@@ -1,7 +1,8 @@
 import os
-import pickle
 import numpy as np
 from typing import Optional
+
+import joblib
 
 from model import database
 from model.feature_extractor import build_feature_vector
@@ -12,8 +13,7 @@ clf = None
 model_path = os.path.join(os.path.dirname(__file__), "..", "models", "classifier.pkl")
 if os.path.exists(model_path):
     try:
-        with open(model_path, "rb") as f:
-            clf = pickle.load(f)
+        clf = joblib.load(model_path)
     except Exception:
         pass
 
@@ -50,16 +50,21 @@ def _apply_rule_overrides(
         result.decision_trace.append("explicit_request_override")
         return result
 
+    # Track whether a mid-priority warning was set so we can return it
+    # if no higher-priority rule upgrades to hazardous
+    mid_priority_matched = False
+
     if "substance_abuse" in flags:
         result.risk_level = "warning"
         result.confidence = 0.8
         result.decision_trace.append("substance_use_warning_override")
-        # Don't return yet, allow other rules to upgrade to hazardous
-    
+        mid_priority_matched = True
+
     if "financial_fraud" in flags:
         result.risk_level = "warning"
         result.confidence = 0.8
         result.decision_trace.append("fraud_warning_override")
+        mid_priority_matched = True
 
     if "identity_deception" in flags:
         result.risk_level = "hazardous"
@@ -82,6 +87,11 @@ def _apply_rule_overrides(
         result.risk_level = "safe"
         result.confidence = 0.9
         result.decision_trace.append("long_friendship_safe_override")
+        return result
+
+    # If substance_abuse or financial_fraud matched but no higher-priority
+    # rule upgraded to hazardous, preserve the warning
+    if mid_priority_matched:
         return result
 
     return None

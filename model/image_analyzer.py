@@ -126,7 +126,13 @@ def analyze_media(media_base64: str, media_type: str = "image") -> Tuple[bool, f
     # Standardize base64
     if "," in media_base64:
         media_base64 = media_base64.split(",")[1]
-        
+
+    # Guard against OOM: reject payloads larger than ~10MB decoded
+    MAX_BASE64_LENGTH = 14_000_000  # ~10MB after base64 decoding
+    if len(media_base64) > MAX_BASE64_LENGTH:
+        print("Warning: Media payload exceeds 10MB size limit, rejecting.")
+        return False, 0.0, 0
+
     try:
         decoded_data = base64.b64decode(media_base64)
     except Exception:

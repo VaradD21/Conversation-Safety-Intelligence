@@ -94,7 +94,6 @@ class ConversationFeatures:
     escalation: float = 0.0
     age_disparity: float = 0.0
     is_long_friendship: float = 0.0
-    phase_score: float = 0.0
     secrecy_score: float = 0.0
     pii_request_score: float = 0.0
     boundary_pressure_score: float = 0.0

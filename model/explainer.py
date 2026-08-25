@@ -25,8 +25,6 @@ def generate_explanation(features: ConversationFeatures, patterns: PatternMatchR
         reasons.append("repeated harassment")
     if features.max_toxicity > 0.9:
         reasons.append("extremely high toxicity in a message")
-    if "harmful_reply_to_vulnerable" in flags:
-        reasons.append("harmful response to a vulnerable message")
     if features.escalation > 0.3:
         reasons.append("escalating toxicity trend over time")
         
