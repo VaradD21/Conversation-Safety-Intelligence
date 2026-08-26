@@ -16,29 +16,13 @@ from model.ai_judge import get_ai_judgment
 # Database initialization is handled by the FastAPI lifespan event in api/main.py
 
 
-def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict[str, Any] = None) -> AnalysisResult:
-    """
-    Full analysis pipeline:
-      1. NLP toxicity + sentiment per message
-      2. Feature extraction (behavioral metrics)
-      3. Keyword pattern matching (grooming lifecycle, PII, etc.)
-      4. Semantic intent detection (catches slang/obfuscation)
-      5. Linguistic age inference (no manual age required)
-      6. Decision engine (ML + rule overrides + history)
-      7. AI reasoning layer (GPT-4o / Mistral)
-    """
-    metadata_obj = ConversationMetadata.from_dict(metadata)
-    sender_id = metadata_obj.sender_id
+import concurrent.futures
 
-    if not conversation:
-        return AnalysisResult(
-            risk_level="safe",
-            confidence=1.0,
-            reason="Empty conversation.",
-        )
+TIER1_MAX_TOXICITY_THRESHOLD = 0.3
+TIER1_MAX_SEMANTIC_THRESHOLD = 0.55
 
-    # STEP 1: Per-message NLP and Image analysis
-    analyzed_messages: List[MessageAnalysis] = []
+def _run_nlp_and_vision(conversation: List[Dict[str, str]]) -> List[MessageAnalysis]:
+    analyzed_messages = []
     for msg in conversation:
         analysis_dict = analyze_message(msg.get("text", ""), msg.get("sender", "unknown"))
         
@@ -54,51 +38,127 @@ def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict
                 analysis_dict["text"] += f" [System Auto-flag: NSFW Image Detected ({label})]"
             
         analyzed_messages.append(MessageAnalysis.from_dict(analysis_dict))
+    return analyzed_messages
 
-    # STEP 2: Load user memory
+def _run_semantic(conversation: List[Dict[str, str]]):
     try:
-        user_record = database.get_user(sender_id)
-        user_risk_score = user_record.get("risk_score", 0)
-    except Exception:
-        user_risk_score = 0
-
-    # STEP 3: Feature extraction
-    features = extract_features(analyzed_messages, metadata_obj)
-
-    # STEP 4: Keyword pattern matching
-    patterns = match_patterns(analyzed_messages, metadata_obj)
-
-    # STEP 5: Semantic intent detection (slang/emoji/obfuscation bypass)
-    try:
-        semantic_flags, semantic_hits = get_semantic_flags(conversation, threshold=0.55)
-        for sem_flag in semantic_flags:
-            if sem_flag not in patterns.flags:
-                patterns.flags.append(sem_flag)
-                patterns.evidence.append(PatternEvidence(
-                    flag=sem_flag,
-                    message_indices=[h["message_index"] for h in semantic_hits if h["matched_intent"] == sem_flag],
-                    matched_text=[h["message_text"][:80] for h in semantic_hits if h["matched_intent"] == sem_flag],
-                    detail=f"Semantic intent detected (similarity-based). Category: {sem_flag}",
-                    weight=max((h["weight"] for h in semantic_hits if h["matched_intent"] == sem_flag), default=0.6),
-                ))
+        return get_semantic_flags(conversation, threshold=TIER1_MAX_SEMANTIC_THRESHOLD)
     except Exception as e:
         print(f"Warning: Semantic engine error: {e}")
+        return [], []
 
-    # STEP 6: Age Inference (replaces manual age input requirement)
+def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict[str, Any] = None) -> AnalysisResult:
+    """
+    Tiered analysis pipeline:
+      Tier 0: Fast pattern matching (Regex/Keywords). Short-circuits if hazardous.
+      Tier 1: NLP Toxicity + Semantic similarity. Short-circuits to safe if benign.
+      Tier 2: Deep ML (Random Forest) + AI Reasoning (LLM Judge).
+    """
+    metadata_obj = ConversationMetadata.from_dict(metadata)
+    sender_id = metadata_obj.sender_id
+
+    if not conversation:
+        return AnalysisResult(
+            risk_level="safe",
+            confidence=1.0,
+            reason="Empty conversation.",
+        )
+
+    # -------------------------------------------------------------------------
+    # TIER 0: FAST REGEX & RULE GATING
+    # -------------------------------------------------------------------------
+    # Create base messages without heavy ML processing
+    base_messages = [MessageAnalysis(
+        text=msg.get("text", ""), 
+        sender=msg.get("sender", "unknown"),
+        image_base64=msg.get("image_base64")
+    ) for msg in conversation]
+    
+    base_patterns = match_patterns(base_messages, metadata_obj)
+    base_features = extract_features(base_messages, metadata_obj)
+    base_decision = classify(base_features, base_patterns, metadata_obj)
+    
+    # Preserve the history score fetched during base_decision
+    user_risk_score = base_decision.category_scores.get("history", 0.0) * 20.0
+
+    if base_decision.risk_level == "hazardous":
+        reason = generate_explanation(base_features, base_patterns, base_decision)
+        return AnalysisResult(
+            risk_level="hazardous",
+            confidence=base_decision.confidence,
+            reason=reason,
+            flagged_messages=list(set(e_idx for ev in base_patterns.evidence for e_idx in ev.message_indices)),
+            behavioral_flags=base_patterns.flags,
+            detected_phase=base_patterns.detected_phase,
+            evidence=base_patterns.evidence,
+            category_scores=base_decision.category_scores,
+            decision_trace=base_decision.decision_trace + ["tier0_short_circuit_hazardous"],
+            user_risk_score=int(user_risk_score),
+            repeat_offender=base_decision.repeat_offender,
+        )
+
+    # -------------------------------------------------------------------------
+    # TIER 1: PARALLEL NLP & SEMANTIC ANALYSIS
+    # -------------------------------------------------------------------------
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future_nlp = executor.submit(_run_nlp_and_vision, conversation)
+        future_sem = executor.submit(_run_semantic, conversation)
+        
+        analyzed_messages = future_nlp.result()
+        semantic_flags, semantic_hits = future_sem.result()
+
+    max_tox = max((m.toxicity for m in analyzed_messages), default=0.0)
+    has_nsfw = any(m.is_nsfw_image for m in analyzed_messages)
+
+    # If completely clean, short circuit and skip Tier 2 completely
+    if max_tox < TIER1_MAX_TOXICITY_THRESHOLD and not semantic_flags and not has_nsfw and base_decision.risk_level == "safe":
+        return AnalysisResult(
+            risk_level="safe",
+            confidence=0.9,
+            reason="Tier 1 heuristic determined conversation is benign.",
+            flagged_messages=[],
+            behavioral_flags=base_patterns.flags,
+            detected_phase=base_patterns.detected_phase,
+            evidence=base_patterns.evidence,
+            category_scores=base_decision.category_scores,
+            decision_trace=base_decision.decision_trace + ["tier1_short_circuit_safe"],
+            user_risk_score=int(user_risk_score),
+            repeat_offender=base_decision.repeat_offender,
+        )
+
+    # -------------------------------------------------------------------------
+    # TIER 2: DEEP ANALYSIS (Random Forest + AI Judge)
+    # -------------------------------------------------------------------------
+    features = extract_features(analyzed_messages, metadata_obj)
+    
+    # Re-run patterns now that we have Toxicity and NSFW flags
+    patterns = match_patterns(analyzed_messages, metadata_obj)
+    
+    # Merge semantic flags
+    for sem_flag in semantic_flags:
+        if sem_flag not in patterns.flags:
+            patterns.flags.append(sem_flag)
+            patterns.evidence.append(PatternEvidence(
+                flag=sem_flag,
+                message_indices=[h["message_index"] for h in semantic_hits if h["matched_intent"] == sem_flag],
+                matched_text=[h["message_text"][:80] for h in semantic_hits if h["matched_intent"] == sem_flag],
+                detail=f"Semantic intent detected (similarity-based). Category: {sem_flag}",
+                weight=max((h["weight"] for h in semantic_hits if h["matched_intent"] == sem_flag), default=0.6),
+            ))
+
+    # Age Inference
     try:
         age_profiles = build_age_profiles(conversation)
-        # Inject age inference results into metadata if sender_age is not provided
         primary_sender = conversation[0].get("sender", "unknown") if conversation else "unknown"
-        if metadata_obj.sender_age == 25 and primary_sender in age_profiles:  # 25 is the default "unknown" value
+        if metadata_obj.sender_age == 25 and primary_sender in age_profiles:
             profile = age_profiles[primary_sender]
             if profile["category"] == "adult":
-                metadata_obj.sender_age = 35  # Representative adult age
+                metadata_obj.sender_age = 35
             elif profile["category"] == "teen":
                 metadata_obj.sender_age = 15
             elif profile["category"] == "child":
                 metadata_obj.sender_age = 11
 
-            # If mimicry detected (adult pretending to be young), force identity deception flag
             if profile["mimicry_detected"] and "identity_deception" not in patterns.flags:
                 patterns.flags.append("identity_deception")
                 patterns.evidence.append(PatternEvidence(
@@ -109,29 +169,22 @@ def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict
                     weight=1.0,
                 ))
 
-            # If extraction detected, boost PII flag
             if profile["extraction_detected"] and "pii_leak_detected" not in patterns.flags:
                 patterns.flags.append("pii_leak_detected")
     except Exception as e:
         print(f"Warning: Age inference error: {e}")
         age_profiles = {}
 
-    # STEP 7: Decision engine
     decision = classify(features, patterns, metadata_obj)
-
     reason = generate_explanation(features, patterns, decision)
 
     flagged_messages = sorted(set(
-        index
-        for index, msg in enumerate(analyzed_messages)
-        if msg.toxicity > 0.7
+        index for index, msg in enumerate(analyzed_messages) if msg.toxicity > 0.7
     ) | set(
-        evidence_index
-        for evidence in patterns.evidence
-        for evidence_index in evidence.message_indices
+        evidence_index for evidence in patterns.evidence for evidence_index in evidence.message_indices
     ))
 
-    # STEP 8: AI Reasoning Layer — runs for all non-safe outcomes
+    # AI Reasoning Layer (runs for non-safe outcomes)
     ai_result = {}
     judge_overridden = False
     if decision.risk_level != "safe" or decision.repeat_offender or len(patterns.flags) > 0:
@@ -175,7 +228,7 @@ def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict
         evidence=patterns.evidence,
         category_scores=decision.category_scores,
         decision_trace=decision.decision_trace,
-        user_risk_score=user_risk_score,
+        user_risk_score=int(user_risk_score),
         repeat_offender=decision.repeat_offender,
         ai_judgment=ai_judgment_text,
         threat_category=ai_result.get("threat_category", "unknown"),
