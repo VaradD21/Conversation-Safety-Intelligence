@@ -133,6 +133,7 @@ def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict
 
     # STEP 8: AI Reasoning Layer — runs for all non-safe outcomes
     ai_result = {}
+    judge_overridden = False
     if decision.risk_level != "safe" or decision.repeat_offender or len(patterns.flags) > 0:
         try:
             ai_result = get_ai_judgment(
@@ -143,14 +144,22 @@ def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict
                 age_profiles,
             )
 
-            # If AI upgrades the risk level, respect it (zero false negatives)
+            # Ensure AI Judge is advisory and only upgrades risk.
             ai_final_risk = ai_result.get("final_risk", decision.risk_level)
             risk_order = {"safe": 0, "warning": 1, "hazardous": 2}
-            if risk_order.get(ai_final_risk, 0) > risk_order.get(decision.risk_level, 0):
+            
+            ai_rank = risk_order.get(ai_final_risk, 0)
+            decision_rank = risk_order.get(decision.risk_level, 0)
+            
+            if ai_rank > decision_rank:
                 decision.risk_level = ai_final_risk
                 decision.decision_trace.append(f"ai_judge_upgraded_to_{ai_final_risk}")
+            elif ai_rank < decision_rank:
+                judge_overridden = True
+                decision.decision_trace.append(f"ai_judge_ignored_downgrade_to_{ai_final_risk}")
         except Exception as e:
-            print(f"Warning: AI Judge failed: {e}")
+            print(f"Warning: AI Judge failed or timed out: {e}")
+            decision.decision_trace.append("ai_judge_failed_fallback_to_rules")
 
     ai_judgment_text = ai_result.get("reason", "")
     if ai_result.get("action_recommended"):
@@ -171,6 +180,7 @@ def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict
         ai_judgment=ai_judgment_text,
         threat_category=ai_result.get("threat_category", "unknown"),
         action_recommended=ai_result.get("action_recommended", ""),
+        judge_overridden=judge_overridden,
     )
 
 

@@ -130,6 +130,7 @@ class AnalysisResult:
     ai_judgment: str = ""
     threat_category: str = "unknown"
     action_recommended: str = ""
+    judge_overridden: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -147,4 +148,5 @@ class AnalysisResult:
             "ai_judgment": self.ai_judgment,
             "threat_category": self.threat_category,
             "action_recommended": self.action_recommended,
+            "judge_overridden": self.judge_overridden,
         }
