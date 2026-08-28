@@ -47,7 +47,7 @@ def _run_semantic(conversation: List[Dict[str, str]]):
         print(f"Warning: Semantic engine error: {e}")
         return [], []
 
-def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict[str, Any] = None) -> AnalysisResult:
+def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict[str, Any] = None, skip_ai_judge: bool = False) -> AnalysisResult:
     """
     Tiered analysis pipeline:
       Tier 0: Fast pattern matching (Regex/Keywords). Short-circuits if hazardous.
@@ -187,7 +187,10 @@ def analyze_conversation_core(conversation: List[Dict[str, str]], metadata: Dict
     # AI Reasoning Layer (runs for non-safe outcomes)
     ai_result = {}
     judge_overridden = False
-    if decision.risk_level != "safe" or decision.repeat_offender or len(patterns.flags) > 0:
+    
+    if skip_ai_judge:
+        decision.decision_trace.append("ai_judge_skipped_fast_mode")
+    elif decision.risk_level != "safe" or decision.repeat_offender or len(patterns.flags) > 0:
         try:
             ai_result = get_ai_judgment(
                 conversation,

@@ -48,6 +48,7 @@ class MessageInput(BaseModel):
 
 
 class ConversationMetadata(BaseModel):
+    child_id: str = Field(default="unknown", description="ID of the child account.")
     sender_id: str = Field(default="unknown_sender", description="Unique ID for the sender.")
     conversation_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique ID for the conversation.")
     friendship_duration_days: int = Field(default=0, description="How long the users have been connected.")
@@ -83,6 +84,7 @@ class AnalysisResponse(BaseModel):
     action_recommended: str = Field(default="")
 
 class DOMBatchRequest(BaseModel):
+    child_id: str = Field(default="unknown", description="ID of the child account.")
     texts: List[str] = Field(..., description="Array of text node strings extracted from the DOM")
 
 class MediaRequest(BaseModel):
@@ -122,28 +124,126 @@ async def get_blocklist():
         ]
     }
 
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+import time
+
+# Store background tasks state (In production this would be Redis/Postgres)
+BACKGROUND_ESCALATIONS: Dict[str, Dict] = {}
+
+# Rate Limiting Configuration
+RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_MAX_REQUESTS = 30  # Sane default: 30 requests per minute per child
+RATE_LIMITS: Dict[str, List[float]] = {}
+
+def check_rate_limit(child_id: str) -> bool:
+    """
+    Sliding window rate limiter.
+    Returns True if request is allowed, False if limit exceeded.
+    """
+    if not child_id:
+        child_id = "unknown"
+        
+    try:
+        now = time.time()
+        if child_id not in RATE_LIMITS:
+            RATE_LIMITS[child_id] = []
+            
+        # Prune requests outside the sliding window
+        RATE_LIMITS[child_id] = [t for t in RATE_LIMITS[child_id] if now - t < RATE_LIMIT_WINDOW_SECONDS]
+        
+        if len(RATE_LIMITS[child_id]) >= RATE_LIMIT_MAX_REQUESTS:
+            return False
+            
+        # Record this request
+        RATE_LIMITS[child_id].append(now)
+        return True
+    except Exception as e:
+        # FAIL CLOSED: If the rate limiter encounters an error (e.g. OOM), we fail closed
+        # by returning False. For a safety product, if we fail open, an attacker could 
+        # intentionally trigger the error condition to bypass limits.
+        print(f"Rate Limiter Exception: {e}")
+        return False
+
+async def run_background_judge(req_id: str, convo: list, base_risk: str, flags: list, phase: str):
+    from model.ai_judge import get_ai_judgment
+    try:
+        # Pass empty age_profiles for now since they are less critical for quick DOM alerts
+        ai_result = await asyncio.to_thread(get_ai_judgment, convo, base_risk, flags, phase, {})
+        
+        ai_final_risk = ai_result.get("final_risk", base_risk)
+        risk_order = {"safe": 0, "warning": 1, "hazardous": 2}
+        
+        if risk_order.get(ai_final_risk, 0) > risk_order.get(base_risk, 0):
+            BACKGROUND_ESCALATIONS[req_id] = {
+                "status": "completed",
+                "escalated": True,
+                "new_risk_level": ai_final_risk,
+                "reason": ai_result.get("reason", "")
+            }
+        else:
+            BACKGROUND_ESCALATIONS[req_id] = {
+                "status": "completed",
+                "escalated": False
+            }
+    except Exception as e:
+        BACKGROUND_ESCALATIONS[req_id] = {
+            "status": "error",
+            "error": str(e)
+        }
+
+@app.get("/analyze_dom/status/{request_id}")
+async def get_dom_status(request_id: str):
+    if request_id not in BACKGROUND_ESCALATIONS:
+        raise HTTPException(status_code=404, detail="Request ID not found")
+    return BACKGROUND_ESCALATIONS[request_id]
+
 @app.post("/analyze_dom")
-async def analyze_dom_endpoint(request: DOMBatchRequest):
+async def analyze_dom_endpoint(request: DOMBatchRequest, background_tasks: BackgroundTasks):
+    from model.pipeline import analyze_conversation_core
+    
+    # Rate Limiting Check
+    if not check_rate_limit(request.child_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded for this child account.")
+        
     if not request.texts:
         return {"results": []}
     
-    # We run the text through our high-speed NLP toxicity & sentiment models
     results = []
     for text in request.texts:
         try:
-            # We skip AI Judge and complex context for raw DOM speed
-            analysis = await asyncio.to_thread(analyze_message, text, "DOM_Node")
+            convo = [{"sender": "DOM_Node", "text": text}]
+            # We skip AI Judge for raw DOM speed, but reuse Tier 0 & 1
+            result_obj = await asyncio.to_thread(analyze_conversation_core, convo, None, skip_ai_judge=True)
             
-            # Simple thresholding for real-time DOM blurring
-            # If toxicity is high or highly negative sentiment indicating cyberbullying
-            is_hazardous = analysis["toxicity"] > 0.75 or (analysis["sentiment"] < -0.8 and analysis["toxicity"] > 0.5)
+            is_hazardous = result_obj.risk_level in ["hazardous", "warning"]
+            reason = result_obj.reason
             
-            reason = "High Toxicity/Bullying" if is_hazardous else "Safe"
+            # Check if it was ambiguous (escalated to Tier 2, didn't short circuit in T0/T1)
+            did_short_circuit = any("short_circuit" in t for t in result_obj.decision_trace)
             
-            results.append({
-                "is_hazardous": is_hazardous,
-                "reason": reason
-            })
+            if not did_short_circuit and result_obj.risk_level != "hazardous":
+                # Schedule background AI judge (only if it wasn't already hard hazardous!)
+                req_id = str(uuid.uuid4())
+                BACKGROUND_ESCALATIONS[req_id] = {"status": "pending"}
+                background_tasks.add_task(
+                    run_background_judge, 
+                    req_id, 
+                    convo, 
+                    result_obj.risk_level, 
+                    result_obj.behavioral_flags, 
+                    result_obj.detected_phase
+                )
+                
+                results.append({
+                    "is_hazardous": is_hazardous,
+                    "reason": reason,
+                    "escalation_id": req_id
+                })
+            else:
+                results.append({
+                    "is_hazardous": is_hazardous,
+                    "reason": reason
+                })
         except Exception as e:
             results.append({"is_hazardous": False, "reason": "error"})
             
@@ -151,6 +251,10 @@ async def analyze_dom_endpoint(request: DOMBatchRequest):
 
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_endpoint(request: ConversationRequest):
+    # Rate Limiting Check
+    if not check_rate_limit(request.metadata.child_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded for this child account.")
+        
     if not request.conversation:
         raise HTTPException(status_code=400, detail="Conversation cannot be empty.")
     
